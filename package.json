@@ -1,0 +1,17 @@
+{
+  "name": "accessible-form-error-checker",
+  "version": "0.0.0",
+  "description": "Check form error text, associations, focus movement and recovery behavior.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/edilec/accessible-form-error-checker"
+  }
+}
