@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1",
+  "requireErrorSummary": true,
+  "requireAriaInvalid": true,
+  "focusAfterSubmit": ["summary", "first-invalid-field"],
+  "maxSnapshotAgeDays": 90
+}
