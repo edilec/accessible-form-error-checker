@@ -1,17 +1,52 @@
 {
   "name": "accessible-form-error-checker",
-  "version": "0.0.0",
-  "description": "Check form error text, associations, focus movement and recovery behavior.",
+  "version": "0.1.0",
+  "description": "Check form labels, error associations, summary links, focus recovery and asynchronous validation in an exported DOM snapshot, against an expectations document.",
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test"
+    "lint": "node --check src/rules.mjs && node --check src/policy.mjs && node --check src/snapshot.mjs && node --check src/checks.mjs && node --check src/index.mjs && node --check bin/accessible-form-error-checker.mjs && node --check test/helpers.mjs && node --check test/acceptance.test.mjs && node --check test/catalog.test.mjs && node --check test/cli.test.mjs && node --check test/evidence.test.mjs && node --check test/honesty.test.mjs && node --check test/ordering.test.mjs && node --check test/parse.test.mjs && node --check test/policy.test.mjs && node --check test/sanitise.test.mjs && node --check test/severity.test.mjs",
+    "test": "node --test",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include=src/**",
+    "example": "node bin/accessible-form-error-checker.mjs --snapshot examples/clean/snapshot.json --expectations examples/clean/expectations.json --now 2026-09-18",
+    "example:broken": "node bin/accessible-form-error-checker.mjs --snapshot examples/broken/snapshot.json --expectations examples/broken/expectations.json --now 2026-09-18; test $? -eq 1",
+    "pack:check": "npm pack --dry-run",
+    "check": "npm run lint && npm test && npm run example && npm run example:broken && npm run pack:check"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/edilec/accessible-form-error-checker"
-  }
+    "url": "git+https://github.com/edilec/accessible-form-error-checker.git"
+  },
+  "bin": {
+    "accessible-form-error-checker": "./bin/accessible-form-error-checker.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "examples",
+    "docs",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "accessibility",
+    "forms",
+    "error-messages",
+    "aria",
+    "focus",
+    "audit",
+    "cli"
+  ],
+  "author": "Edilec Private Limited",
+  "bugs": {
+    "url": "https://github.com/edilec/accessible-form-error-checker/issues"
+  },
+  "homepage": "https://github.com/edilec/accessible-form-error-checker#readme"
 }
