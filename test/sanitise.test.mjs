@@ -20,16 +20,16 @@ import { describeValue, isRenderableString, renderReport, sanitize } from '../sr
 import { checkMutated, fieldIn, findingsFor, ruleIds, stateNamed } from './helpers.mjs'
 
 const CLASSES = [
-  ['C0', ''],
+  ['C0', '\u0001'],
   ['newline', '\n'],
-  ['DEL', ''],
-  ['C1 NEL', ''],
-  ['C1 CSI', ''],
-  ['line separator', ' '],
-  ['paragraph separator', ' '],
-  ['bidi LRM', '‎'],
-  ['bidi RLO', '‮'],
-  ['bidi isolate', '⁦'],
+  ['DEL', '\u007f'],
+  ['C1 NEL', '\u0085'],
+  ['C1 CSI', '\u009b'],
+  ['line separator', '\u2028'],
+  ['paragraph separator', '\u2029'],
+  ['bidi LRM', '\u200e'],
+  ['bidi RLO', '\u202e'],
+  ['bidi isolate', '\u2066'],
 ]
 
 test('every unsafe class is stripped, not only C0 and the separators', () => {
@@ -57,11 +57,11 @@ test('an unsafe character arriving through an IDENTIFIER cannot forge a line', a
 })
 
 test('the two separators are escaped in the rendered JSON as well as stripped upstream', () => {
-  const rendered = renderReport({ note: 'a b c' })
-  assert.ok(!rendered.includes(' '))
-  assert.ok(!rendered.includes(' '))
+  const rendered = renderReport({ note: 'a\u2028b\u2029c' })
+  assert.ok(!rendered.includes('\u2028'))
+  assert.ok(!rendered.includes('\u2029'))
   assert.match(rendered, /a\\u2028b\\u2029c/u)
-  assert.deepEqual(JSON.parse(rendered), { note: 'a b c' })
+  assert.deepEqual(JSON.parse(rendered), { note: 'a\u2028b\u2029c' })
 })
 
 test('a value that cannot be converted to a primitive is described, never reproduced', () => {
@@ -112,13 +112,13 @@ test('a label that would show nothing is not a label', async (t) => {
 
 test('an error message that would show nothing is reported, not counted as a message', async () => {
   const report = await checkMutated((snapshot) => {
-    snapshot.nodes.find((node) => node.id === 'email-error-required').text = '‮'
+    snapshot.nodes.find((node) => node.id === 'email-error-required').text = '\u202e\u0001\u0085'
   })
   assert.equal(report.status, 'fail')
   const empty = findingsFor(report, 'error-message-empty')
   assert.equal(empty.length, 1)
   assert.equal(empty[0].location.pointer, '/nodes/email-error-required')
-  assert.ok(!empty[0].message.includes('‮'))
+  assert.ok(!empty[0].message.includes('\u202e'))
 })
 
 test('trim() would have passed the classes it does not know about, which is why it is not used', () => {

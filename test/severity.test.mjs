@@ -26,7 +26,7 @@ const DEFECTS = {
     record.describedby = ['postcode-error-required']
   },
   'error-message-empty': (snapshot) => {
-    snapshot.nodes.find((node) => node.id === 'email-error-required').text = '‮'
+    snapshot.nodes.find((node) => node.id === 'email-error-required').text = '\u202e\u0085'
   },
   'error-message-not-visible': (snapshot) => {
     stateNamed(snapshot, '03-email-taken').visibleMessages = ['postcode-error-required']
