@@ -22,15 +22,14 @@
 import {
   at,
   byCodeUnit,
-  isRenderableString,
   makeFinding,
   msg,
   num,
+  showsSomething,
 } from './rules.mjs'
 import { SUPPORTED_SOURCE, pointerFor, readField, readNode, readStateField, readSummary } from './snapshot.mjs'
 import { parseInstant } from './policy.mjs'
 
-const MAX_MESSAGE_TEXT = 500
 const DAY_MS = 86400000
 
 /**
@@ -212,9 +211,10 @@ function checkLabel(field, index, file, findings) {
     else if (hit !== null) resolved += 1
   }
 
-  // `isRenderableString` rather than a length or a trim: an aria-label of
-  // U+200E or U+0001 survives `trim()` and then says nothing at all.
-  const named = labelling.wrappingLabel || resolved > 0 || isRenderableString(labelling.ariaLabel, MAX_MESSAGE_TEXT)
+  // `showsSomething` rather than a length or a trim: an aria-label of U+200E
+  // or U+0001 survives `trim()` and then shows nothing at all, while a very
+  // long one is still a label.
+  const named = labelling.wrappingLabel || resolved > 0 || showsSomething(labelling.ariaLabel)
   if (named) return
   // A field whose only labelling references could not be resolved is not a
   // field with no label -- it is a field whose label was not established, and
@@ -287,9 +287,11 @@ function checkStateField({ state, field, record, index, policy, file, findings }
           at(file, pointerFor('nodes', node.id)),
           { suggestion: 'Record the message text, using null when the element was empty.' },
         ))
-      } else if (!isRenderableString(node.text, MAX_MESSAGE_TEXT)) {
-        // Not a length check: a message of bidi controls or C1 characters has a
-        // non-zero length, survives trim(), and shows nothing.
+      } else if (!showsSomething(node.text)) {
+        // Not a length check in either direction: a message of bidi controls or
+        // C1 characters has a non-zero length, survives trim(), and shows
+        // nothing -- while a message LONGER than any cap shows plenty, and
+        // calling that one empty would be a false accusation.
         findings.push(makeFinding(
           'error-message-empty',
           msg`The message ${node.id}, declared as the error for field ${field.id} in state ${state.name}, would show no text at all.`,

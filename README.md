@@ -359,6 +359,13 @@ name is at most 128 characters, an `aria-describedby` or `aria-labelledby` list
 at most 32 entries, a summary at most 500 links, `unreadableRegions` at most 200
 entries, and the expectations document itself at most 262144 bytes.
 
+Message text and `aria-label` text are **not** length-capped beyond
+`maxSnapshotBytes`. The only question asked of them is whether they would show
+anything at all: a message longer than any cap shows plenty, and reporting it as
+empty would be a confident false accusation about the interface. `evidence` in a
+finding is a bounded excerpt at 200 characters, which is a bound on the report
+rather than on the document.
+
 ## Safety of the report
 
 Every untrusted string — ids, state names, reasons, message excerpts, file names

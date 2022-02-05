@@ -16,7 +16,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { describeValue, isRenderableString, renderReport, sanitize } from '../src/index.mjs'
+import { describeValue, isRenderableString, renderReport, sanitize, showsSomething } from '../src/index.mjs'
 import { checkMutated, fieldIn, findingsFor, ruleIds, stateNamed } from './helpers.mjs'
 
 const CLASSES = [
@@ -146,4 +146,39 @@ test('a long value is bounded rather than echoed whole', () => {
   const out = sanitize(long)
   assert.equal(out.length, 200)
   assert.ok(out.endsWith('...'))
+})
+
+test('a LONG message is not a message that shows nothing', async (t) => {
+  // The emptiness question and the length question are different, and merging
+  // them produced a false accusation: a message past an internal cap was
+  // reported as showing no text at all. Length here is bounded by the document
+  // size limit and by nothing else.
+  await t.test('an error message of 2000 characters passes', async () => {
+    const report = await checkMutated((snapshot) => {
+      snapshot.nodes.find((node) => node.id === 'email-error-required').text = 'Enter your email address. '.repeat(80)
+    })
+    assert.equal(report.status, 'pass')
+    assert.equal(findingsFor(report, 'error-message-empty').length, 0)
+  })
+
+  await t.test('an aria-label of 2000 characters is still a label', async () => {
+    const report = await checkMutated((snapshot) => {
+      snapshot.fields[0].labelling = {
+        labelFor: null,
+        ariaLabelledby: null,
+        ariaLabel: 'Email address '.repeat(150),
+        wrappingLabel: false,
+      }
+    })
+    assert.equal(report.status, 'pass')
+    assert.equal(findingsFor(report, 'field-not-labelled').length, 0)
+  })
+
+  await t.test('showsSomething separates the two questions directly', () => {
+    assert.equal(showsSomething('x'.repeat(5000)), true)
+    assert.equal(showsSomething('‎'.repeat(5000)), false)
+    assert.equal(showsSomething(null), false)
+    assert.equal(showsSomething(undefined), false)
+    assert.equal(isRenderableString('x'.repeat(5000)), false, 'an identifier that long is still refused')
+  })
 })
