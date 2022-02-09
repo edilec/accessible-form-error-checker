@@ -15,8 +15,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { byCodeUnit, checkForm } from '../src/index.mjs'
-import { NOW } from './helpers.mjs'
+import { byCodeUnit, checkForm, compareFindings } from '../src/index.mjs'
+import { NOW, checkMutated, stateNamed } from './helpers.mjs'
 
 /** No age limit and no summary requirement, so only the ordering is in play. */
 const EXPECTATIONS = {
@@ -137,4 +137,84 @@ test('findings at the same location are ordered by rule id, by code unit', async
     ['error-not-associated', 'invalid-not-exposed'],
   )
   assert.equal(new Set(report.findings.map((finding) => finding.location.pointer)).size, 1)
+})
+
+test('each sort key decides on its own, and none of them is decoration', async (t) => {
+  // A mutation sweep found three of the four keys undefended: every finding in
+  // a run comes from one file, and the message key happened to order the
+  // fixtures the same way the pointer key did, so dropping either changed
+  // nothing observable. The keys are asserted directly, one at a time.
+  const finding = (file, pointer, ruleId, message) => ({
+    ruleId,
+    severity: 'error',
+    message,
+    location: { file, pointer },
+  })
+
+  await t.test('file decides first', () => {
+    const a = finding('Zebra.json', '/z', 'z-rule', 'z')
+    const b = finding('apple.json', '/a', 'a-rule', 'a')
+    assert.equal(compareFindings(a, b), -1, 'Z before a by code unit, whatever the other keys say')
+    assert.equal(compareFindings(b, a), 1)
+    assert.deepEqual(
+      [b, a].sort(compareFindings).map((entry) => entry.location.file),
+      ['Zebra.json', 'apple.json'],
+    )
+  })
+
+  await t.test('pointer decides when the file is the same', () => {
+    const a = finding('x.json', '/a-b', 'z-rule', 'zzz')
+    const b = finding('x.json', '/a_b', 'a-rule', 'aaa')
+    assert.equal(compareFindings(a, b), -1, '- before _ by code unit, whatever the other keys say')
+    assert.equal(compareFindings(b, a), 1)
+  })
+
+  await t.test('rule id decides when the file and pointer are the same', () => {
+    const a = finding('x.json', '/same', 'MAX_DUPLICATE_URLS', 'zzz')
+    const b = finding('x.json', '/same', 'MAX_DUPLICATE_URL_ENTRIES', 'aaa')
+    assert.equal(compareFindings(a, b), -1, 'S before _ by code unit')
+    assert.equal(compareFindings(b, a), 1)
+  })
+
+  await t.test('message decides when everything else is the same', () => {
+    const a = finding('x.json', '/same', 'same-rule', 'Zebra')
+    const b = finding('x.json', '/same', 'same-rule', 'apple')
+    assert.equal(compareFindings(a, b), -1)
+    assert.equal(compareFindings(b, a), 1)
+    assert.equal(compareFindings(a, { ...a }), 0)
+  })
+
+  await t.test('a run really can emit two findings that differ only in message', async () => {
+    // `stale-error-message` fires once per message left visible, all at the
+    // same pointer with the same rule id, so the message key is reachable.
+    const report = await checkMutated((snapshot) => {
+      snapshot.nodes.push({
+        id: 'email-error-format',
+        kind: 'message',
+        belongsTo: 'email',
+        text: 'Enter a valid email address',
+      })
+      stateNamed(snapshot, '04-both-corrected').visibleMessages = [
+        'email-error-required',
+        'email-error-format',
+      ]
+    })
+    const stale = report.findings.filter((entry) => entry.ruleId === 'stale-error-message')
+    assert.equal(stale.length, 2)
+    assert.equal(new Set(stale.map((entry) => entry.location.pointer)).size, 1)
+    assert.deepEqual(
+      stale.map((entry) => /message (\S+) written/u.exec(entry.message)[1]),
+      ['email-error-format', 'email-error-required'],
+    )
+  })
+})
+
+test('an unreadable region must give a reason the tool knows', async () => {
+  const report = await checkMutated((snapshot) => {
+    snapshot.unreadableRegions = [{ hostId: 'widget', reason: 'it-was-tricky' }]
+  })
+  assert.equal(report.status, 'incomplete')
+  assert.deepEqual(report.findings.map((entry) => entry.ruleId), ['snapshot-invalid'])
+  assert.match(report.findings[0].message, /must give a "reason" from: shadow-root, closed-shadow-root/u)
+  assert.equal(report.summary.checked, 0)
 })
