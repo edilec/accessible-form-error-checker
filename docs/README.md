@@ -71,3 +71,23 @@ fails when it is made:
 | drop the `!record.ariaInvalidCaptured` branch in the no-error path | a state that never recorded `aria-invalid` passes |
 | swap `byCodeUnit` for a collator | ordering becomes machine-dependent |
 | move the position branch ahead of the quoting branch in `parseFailureDetail` | a document reading `at position 1` is sliced back into the message |
+| give `showsSomething` a length cap again | a message or an `aria-label` longer than the cap is reported as showing nothing |
+| replace any one of the four sort keys with `0` | ordering stops being what the README documents |
+| drop the `UNREADABLE_REASONS` or `INDEX_STATES` check | a typo is accepted as a documented value, and a partial index reads as complete |
+
+## What the sweep is, and what it found
+
+The sweep is mechanical, and the enumeration rather than the adjective is what
+is worth reporting. Four categories, derived from the source text rather than
+from a list somebody thought of:
+
+- every entry in `EVIDENCE_MISSING_RULES`, deleted (29)
+- every severity in `RULE_SEVERITY`, flipped one step (44)
+- every named guard, refusal or validation in `src/`, neutered (56)
+- the ordering primitive given a collator, and each sort key dropped (6)
+
+The first run over this tree was 124 mutations with 117 caught. All seven
+survivors were missing tests rather than equivalent mutants, and each now has
+one. A second run over the final tree, widened to 135 mutations, left four
+survivors -- the four sort keys and the unreadable-reason guard -- which are also
+now pinned.
