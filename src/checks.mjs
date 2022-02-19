@@ -277,9 +277,9 @@ function checkStateField({ state, field, record, index, policy, file, findings }
         { suggestion: 'Add the message id to aria-describedby, or to aria-errormessage alongside aria-invalid.' },
       ))
     }
-    const hit = resolved.get(record.declaredError)
-    if (hit !== undefined && hit !== null && hit.kind === 'node' && hit.value.kind === 'message') {
-      const node = hit.value
+    const errorHit = resolved.get(record.declaredError)
+    if (errorHit !== undefined && errorHit !== null && errorHit.kind === 'node' && errorHit.value.kind === 'message') {
+      const node = errorHit.value
       if (!node.textCaptured) {
         findings.push(makeFinding(
           'message-text-not-captured',
@@ -300,7 +300,15 @@ function checkStateField({ state, field, record, index, policy, file, findings }
         ))
       }
     }
-    if (state.visible !== null && !state.visible.has(record.declaredError)) {
+    // Absence is evidence only about an id the index could look up. When
+    // `resolveReference` answered `undefined` the run has just reported that it
+    // could not find this id at all, and `reference-unresolved` marks the run
+    // incomplete; adding an error-severity statement that the interface does
+    // not show that message would be a positive conclusion about a node this
+    // run cannot see. The label check makes the same distinction, and so does
+    // the sibling tool's `expected-update-missing` gate.
+    const declaredHit = resolved.get(record.declaredError)
+    if (state.visible !== null && declaredHit !== undefined && !state.visible.has(record.declaredError)) {
       findings.push(makeFinding(
         'error-message-not-visible',
         msg`State ${state.name} declares the error ${record.declaredError} for field ${field.id}, but that message is not among the messages the state records as present.`,
@@ -355,6 +363,9 @@ function checkStateField({ state, field, record, index, policy, file, findings }
   }
   if (state.visible !== null) {
     for (const nodeId of [...state.visible].sort(byCodeUnit)) {
+      // A direct lookup, not `resolveReference`: every id in this list was
+      // already resolved once at the state level, and resolving it again here
+      // would report the same dangling id once per declared field.
       const hit = index.byId.get(nodeId)
       if (hit === undefined || hit.kind !== 'node') continue
       if (hit.value.kind !== 'message' || hit.value.belongsTo !== field.id) continue
@@ -618,6 +629,19 @@ export function checkSnapshot({ snapshot, policy, file, now }) {
       ))
     } else {
       state.visible = new Set(state.rawVisible)
+      // Every id in visibleMessages is resolved, exactly as every id in
+      // describedby is. Reading the index directly and skipping a miss was a
+      // real defect here: the same dangling id gave `reference-broken` and
+      // exit 1 in describedby, and vanished out of this comparison at exit 0
+      // with a COMPLETE index -- the contract's "unknown is never a pass, on
+      // both sides of a comparison" violated on the side nobody looked at.
+      // Resolution happens once per state, because visibleMessages is a
+      // state-level list; the per-field loops below then look the id up
+      // directly, since it has already been reported here.
+      const visibleWhere = at(file, pointerFor('states', state.name, 'visibleMessages'))
+      for (const nodeId of [...state.visible].sort(byCodeUnit)) {
+        resolveReference(index, nodeId, visibleWhere, findings, `The visibleMessages of state ${state.name}`)
+      }
     }
 
     if (state.focusCaptured && state.focus !== null && typeof state.focus !== 'string') {
