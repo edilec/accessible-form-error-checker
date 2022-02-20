@@ -195,6 +195,19 @@ does not claim the association is right, and marks the run incomplete. A field
 whose only labelling reference cannot be resolved is likewise not called
 unlabelled.
 
+Every id the snapshot states goes through that one gate, and this list is the
+whole of them: `fields[].labelling.labelFor`,
+`fields[].labelling.ariaLabelledby`, `states[].fields[].declaredError`,
+`states[].fields[].describedby`, `states[].fields[].errormessage`,
+`states[].visibleMessages` and `states[].summary.links[].target`.
+
+The gate works in the other direction as well. `error-message-not-visible` says
+a state does not record the declared error as present, and it is asserted only
+for an id the index could look up: calling a message not-shown is a positive
+statement about a node, and a run that has just reported it could not find that
+node is not entitled to make one. `field-not-labelled` is suppressed in exactly
+the same situation, and so is `expected-update-missing` in the sibling tool.
+
 The rule behind that: evidence dropped while building an index makes the
 comparison incomplete — it does not make the comparison clean. A snapshot that
 declares `idIndex: "complete"` while also listing an unreadable region is
@@ -339,10 +352,16 @@ runs over identical inputs produce byte-identical stdout.
 
 ## The clock
 
-Nothing here reads the wall clock on its own behalf. `maxSnapshotAgeDays` is
-compared against `--now`, which defaults to the system clock and takes
-`YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SSZ`. Passing it makes an age-checking run
-reproducible; the examples pass it for that reason.
+There is exactly one clock reading in this tool: the default of the `now`
+parameter, which the CLI fills from `--now` when `--now` is given. Nothing else
+here consults a clock, and no check has a hidden second reading.
+
+`maxSnapshotAgeDays` is compared against that value, which takes `YYYY-MM-DD` or
+`YYYY-MM-DDTHH:MM:SSZ`. So a run that omits `--now` **is not reproducible**
+whenever the expectations set `maxSnapshotAgeDays`: the staleness verdict is then a
+function of the day the run happened, and re-running it tomorrow can change the
+exit code. Pass `--now` to make an age-checking run reproducible. The shipped
+examples and every test pass it for that reason.
 
 ## Limits
 
