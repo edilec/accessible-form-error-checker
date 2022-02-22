@@ -17,7 +17,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { describeValue, isRenderableString, renderReport, sanitize, showsSomething } from '../src/index.mjs'
-import { checkMutated, fieldIn, findingsFor, ruleIds, stateNamed } from './helpers.mjs'
+import { checkMutated, cleanExpectations, cleanSnapshot, fieldIn, findingsFor, ruleIds, runCli, runCliRaw, stateNamed } from './helpers.mjs'
 
 const CLASSES = [
   ['C0', '\u0001'],
@@ -31,6 +31,60 @@ const CLASSES = [
   ['bidi RLO', '\u202e'],
   ['bidi isolate', '\u2066'],
 ]
+
+/** Every class above, as a code point rather than as a name. */
+const UNSAFE = /[\p{Cc}\p{Cf}\u2028\u2029]/u
+
+test('a configuration diagnostic crosses the same boundary as a report', async (t) => {
+  // A ConfigError message goes to stderr, and the key it names came out of the
+  // expectations document. This was the one string in the tool that skipped
+  // `sanitize`, so a newline in an unknown key split the diagnostic across two
+  // lines and U+202E reversed everything printed after it. stdout stays empty
+  // and the exit code stays 2 either way, which is why it went unnoticed.
+  for (const [name, character] of CLASSES) {
+    await t.test(`an unknown expectations key carrying ${name}`, async () => {
+      const expectations = await cleanExpectations()
+      expectations[`bad${character}key`] = 1
+      const result = await runCli(await cleanSnapshot(), expectations)
+      assert.equal(result.code, 2)
+      assert.equal(result.stdout, '', 'a configuration error carries no report')
+      assert.equal(result.stderr.split('\n').length, 2, `${name}: one line, one terminator`)
+      assert.ok(!UNSAFE.test(result.stderr.replace(/\n$/u, '')), name)
+      assert.match(result.stderr, /Unknown expectation key\(s\): bad key\./u)
+    })
+  }
+
+  await t.test('an unknown limit name is on the same boundary', async () => {
+    const expectations = await cleanExpectations()
+    expectations.limits = { 'maxFields\u2028forged': 1 }
+    const result = await runCli(await cleanSnapshot(), expectations)
+    assert.equal(result.code, 2)
+    assert.equal(result.stdout, '')
+    assert.equal(result.stderr.split('\n').length, 2)
+    assert.match(result.stderr, /Unknown limit\(s\): maxFields forged\./u)
+  })
+
+  await t.test('an unknown CLI option is on the same boundary', async () => {
+    const result = await runCliRaw(['--snapshot', 'x.json', '--not\u0085an\u202eoption'])
+    assert.equal(result.code, 2)
+    assert.equal(result.stdout, '')
+    // The usage text that follows legitimately has newlines, so the assertion
+    // is about the diagnostic line itself: it must be one line, and it must
+    // still be the whole of the first line.
+    const [diagnostic, ...rest] = result.stderr.split('\n')
+    assert.equal(diagnostic, 'Unknown option "--not an option"', 'argv is untrusted input too')
+    assert.equal(rest[0], '', 'the diagnostic is one line, then a blank line, then the usage text')
+    assert.ok(!UNSAFE.test(diagnostic))
+  })
+
+  await t.test('a key that renders as nothing is named, not printed as a gap', async () => {
+    const expectations = await cleanExpectations()
+    expectations['\u0001\u200e'] = 1
+    const result = await runCli(await cleanSnapshot(), expectations)
+    assert.equal(result.code, 2)
+    assert.match(result.stderr, /\(a name that renders as nothing\)/u)
+  })
+})
 
 test('every unsafe class is stripped, not only C0 and the separators', () => {
   for (const [name, character] of CLASSES) {

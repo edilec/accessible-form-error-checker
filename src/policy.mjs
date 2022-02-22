@@ -12,7 +12,7 @@
  * refused rather than quietly defaulted to something this tool invented.
  */
 
-import { isRenderableString } from './rules.mjs'
+import { isRenderableString, sanitize } from './rules.mjs'
 
 export class ConfigError extends Error {
   constructor(message) {
@@ -66,6 +66,25 @@ const KNOWN_KEYS = Object.freeze([
   'limits',
 ])
 
+/**
+ * An untrusted name as a diagnostic prints it.
+ *
+ * A `ConfigError` message reaches stderr, and these names come from a document
+ * this tool did not write. `sanitize` is the single boundary every untrusted
+ * string crosses, and a configuration diagnostic is not an exception to it: a
+ * newline in a key forges a line in the message, U+0085 forges one in any
+ * terminal that honours NEL, and U+202E reverses everything printed after it.
+ *
+ * `isRenderableString` is not a substitute. It only asks whether SOMETHING
+ * would render, so a key of "a\u2028b" passes it and then carries the
+ * separator into the message unchanged. This is the "validate what you will
+ * render" rule: the check and the rendering have to look at the same form.
+ */
+function shown(value) {
+  const flat = sanitize(value, 64)
+  return flat === '' ? '(a name that renders as nothing)' : flat
+}
+
 export function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -109,7 +128,8 @@ export function validatePolicy(document) {
   const unknown = Object.keys(document).filter((key) => !KNOWN_KEYS.includes(key)).sort()
   if (unknown.length > 0) {
     throw new ConfigError(
-      `Unknown expectation key(s): ${unknown.join(', ')}. Known keys: ${[...KNOWN_KEYS].sort().join(', ')}.`,
+      `Unknown expectation key(s): ${unknown.map(shown).join(', ')}. `
+      + `Known keys: ${[...KNOWN_KEYS].sort().join(', ')}.`,
     )
   }
 
@@ -145,7 +165,7 @@ export function validatePolicy(document) {
     const unknownLimits = Object.keys(document.limits).filter((key) => !Object.hasOwn(DEFAULT_LIMITS, key)).sort()
     if (unknownLimits.length > 0) {
       throw new ConfigError(
-        `Unknown limit(s): ${unknownLimits.join(', ')}. Known limits: ${LIMIT_NAMES.join(', ')}.`,
+        `Unknown limit(s): ${unknownLimits.map(shown).join(', ')}. Known limits: ${LIMIT_NAMES.join(', ')}.`,
       )
     }
     for (const key of LIMIT_NAMES) {
