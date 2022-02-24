@@ -44,6 +44,24 @@ test('the report does not claim to emulate a screen reader', async (t) => {
     )
   })
 
+  await t.test('a finding may not be built from a raw string at all', () => {
+    // This guard is the whole of the enforcement above. FORBIDDEN_CLAIMS is
+    // checked INSIDE `msg`, so a call site handing `makeFinding` a plain string
+    // would bypass the check completely -- and the resulting finding carries no
+    // `message` field at all, which the report contract requires. Duck-typing
+    // is refused too: the check is `instanceof`, not "has a text property".
+    assert.throws(
+      () => makeFinding('stale-error-state', 'A screen reader announced the wrong error.', { file: 's.json' }),
+      /must build its message with the msg tagged template/u,
+    )
+    assert.throws(
+      () => makeFinding('stale-error-state', { text: 'a message-shaped object' }, { file: 's.json' }),
+      /must build its message with the msg tagged template/u,
+    )
+    const built = makeFinding('stale-error-state', msg`A message built the one permitted way.`, { file: 's.json' })
+    assert.equal(built.message, 'A message built the one permitted way.')
+  })
+
   await t.test('a line break cannot hide a forbidden phrase from the check', () => {
     assert.throws(
       () => msg`The message was read
