@@ -19,7 +19,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { EVIDENCE_MISSING_RULES, RULE_SEVERITY, checkForm, severityFor } from '../src/index.mjs'
+import { EVIDENCE_MISSING_RULES, RULE_SEVERITY, checkForm, severityFor, statusFor } from '../src/index.mjs'
 import {
   NOW,
   checkMutated,
@@ -221,6 +221,15 @@ test('missing evidence outranks a defect: half a form checked is not a verdict o
 test('exactly fifteen evidence-missing rules are warnings, and the list is the only guard for those', () => {
   const warnings = EVIDENCE_MISSING_RULES.filter((ruleId) => RULE_SEVERITY[ruleId] === 'warning')
   assert.equal(warnings.length, 15)
+  // The second clause, asserted rather than merely stated. For each of those
+  // fifteen the ONLY difference between an incomplete run and a green one is
+  // membership of the list: the severity is held identical on both sides, so
+  // nothing else can be what decides it. Removing a rule from the list makes
+  // the left-hand call return what the right-hand call returns here.
+  for (const ruleId of warnings) {
+    assert.equal(statusFor([{ ruleId, severity: 'warning' }]), 'incomplete', ruleId)
+    assert.equal(statusFor([{ ruleId: `${ruleId}-not-in-the-list`, severity: 'warning' }]), 'pass', ruleId)
+  }
 })
 
 test('a pass on no evidence at all is not reachable', async () => {
