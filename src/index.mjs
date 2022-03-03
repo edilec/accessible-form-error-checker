@@ -66,6 +66,7 @@ import {
 } from './rules.mjs'
 import {
   INDEX_STATES,
+  INVALID_TOKENS,
   NODE_KINDS,
   SNAPSHOT_SCHEMA_VERSION,
   SUPPORTED_SOURCE,
@@ -118,10 +119,12 @@ export {
 } from './rules.mjs'
 export {
   INDEX_STATES,
+  INVALID_TOKENS,
   NODE_KINDS,
   SNAPSHOT_SCHEMA_VERSION,
   SUPPORTED_SOURCE,
   UNREADABLE_REASONS,
+  marksInvalid,
   pointerFor,
   readField,
   readNode,
@@ -345,6 +348,7 @@ export const CATALOG = Object.freeze({
   focusTargets: FOCUS_TARGETS,
   nodeKinds: NODE_KINDS,
   indexStates: INDEX_STATES,
+  invalidTokens: INVALID_TOKENS,
   unreadableReasons: UNREADABLE_REASONS,
   refusedPolicyKeys: REFUSED_POLICY_KEYS,
   supportedSource: SUPPORTED_SOURCE,

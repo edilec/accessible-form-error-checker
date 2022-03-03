@@ -36,6 +36,32 @@ export const SUPPORTED_SOURCE = 'dom-snapshot'
 export const NODE_KINDS = Object.freeze(['label', 'message', 'summary', 'other'])
 export const INDEX_STATES = Object.freeze(['complete', 'partial'])
 
+/**
+ * The `aria-invalid` values that expose a control as invalid.
+ *
+ * ARIA 1.2 gives the state four token values: `false`, which is the default,
+ * `true`, `grammar` and `spelling`. `grammar` and `spelling` are not a milder
+ * kind of valid -- each says an error was detected and names what kind -- so a
+ * control carrying one is exposed as invalid exactly as `true` is.
+ *
+ * Asking for the literal `true` was wrong in both directions at once, which is
+ * why this is one predicate rather than two comparisons. A spell-checked field
+ * in error carrying `aria-invalid="spelling"` -- markup ARIA describes and a
+ * specialist would call right -- was reported as `invalid-not-exposed`, at error
+ * severity, exit 1. The same comparison on the other side let a corrected field
+ * keep `aria-invalid="spelling"` without being reported as stale. The two sides
+ * are the same question and now they cannot drift apart.
+ *
+ * A value outside the token set is not in this list on purpose: ARIA says an
+ * unrecognised token takes the attribute's default, and the default here is
+ * `false`, so `aria-invalid="tru"` exposes nothing as invalid.
+ */
+export const INVALID_TOKENS = Object.freeze(['grammar', 'spelling', 'true'])
+
+export function marksInvalid(value) {
+  return INVALID_TOKENS.includes(value)
+}
+
 /** Reasons an exporter may give for a subtree it could not serialise. */
 export const UNREADABLE_REASONS = Object.freeze([
   'shadow-root',

@@ -27,7 +27,16 @@ import {
   num,
   showsSomething,
 } from './rules.mjs'
-import { SUPPORTED_SOURCE, pointerFor, readField, readNode, readStateField, readSummary } from './snapshot.mjs'
+import {
+  SUPPORTED_SOURCE,
+  INVALID_TOKENS,
+  marksInvalid,
+  pointerFor,
+  readField,
+  readNode,
+  readStateField,
+  readSummary,
+} from './snapshot.mjs'
 import { parseInstant } from './policy.mjs'
 
 const DAY_MS = 86400000
@@ -228,6 +237,20 @@ function checkLabel(field, index, file, findings) {
   ))
 }
 
+/**
+ * An attribute value as a finding prints it.
+ *
+ * `null` is the exporter saying the attribute was not there, which is a
+ * different statement from a value; and a value made only of characters that
+ * are stripped from output would render the sentence as "records aria-invalid
+ * as ." -- a finding whose own evidence says nothing, which is the shape the
+ * sibling tool refuses an expectation for.
+ */
+function attributeAsPrinted(value) {
+  if (value === null) return 'absent'
+  return showsSomething(value) ? value : 'a value that shows nothing'
+}
+
 function checkStateField({ state, field, record, index, policy, file, findings }) {
   const where = at(file, pointerFor('states', state.name, 'fields', field.id))
   const referenced = new Set(record.describedby)
@@ -324,12 +347,12 @@ function checkStateField({ state, field, record, index, policy, file, findings }
           where,
           { suggestion: 'Record ariaInvalid, using null when the attribute was absent.' },
         ))
-      } else if (record.ariaInvalid !== 'true') {
+      } else if (!marksInvalid(record.ariaInvalid)) {
         findings.push(makeFinding(
           'invalid-not-exposed',
-          msg`State ${state.name} declares an error for field ${field.id}, but the field records aria-invalid as ${record.ariaInvalid === null ? 'absent' : record.ariaInvalid}.`,
+          msg`State ${state.name} declares an error for field ${field.id}, but the field records aria-invalid as ${attributeAsPrinted(record.ariaInvalid)}.`,
           where,
-          { suggestion: 'Set aria-invalid="true" on the control while the error stands.' },
+          { suggestion: `Set aria-invalid to one of ${INVALID_TOKENS.join(', ')} on the control while the error stands.` },
         ))
       }
     }
@@ -353,12 +376,16 @@ function checkStateField({ state, field, record, index, policy, file, findings }
       where,
       { suggestion: 'Record ariaInvalid in every state, using null when the attribute was absent.' },
     ))
-  } else if (record.ariaInvalid === 'true') {
+  } else if (marksInvalid(record.ariaInvalid)) {
+    // The same predicate as the branch above, and deliberately so: a field left
+    // carrying `aria-invalid="spelling"` after it was corrected is still a field
+    // exposed as invalid, and the question "is this control marked invalid" has
+    // one answer whichever side of the comparison asks it.
     findings.push(makeFinding(
       'stale-error-state',
-      msg`State ${state.name} declares no error for field ${field.id}, but the field is still marked aria-invalid="true".`,
+      msg`State ${state.name} declares no error for field ${field.id}, but the field is still marked aria-invalid as ${attributeAsPrinted(record.ariaInvalid)}.`,
       where,
-      { suggestion: 'Clear aria-invalid when the value becomes acceptable.' },
+      { suggestion: 'Clear aria-invalid, or set it to false, when the value becomes acceptable.' },
     ))
   }
   if (state.visible !== null) {
@@ -553,7 +580,7 @@ function checkAsync({ field, states, file, findings }) {
     } else if (record.ariaBusy !== 'true') {
       findings.push(makeFinding(
         'async-pending-not-exposed',
-        msg`Field ${field.id} is pending in state ${state.name} but records aria-busy as ${record.ariaBusy === null ? 'absent' : record.ariaBusy}, so nothing in the markup says a check is still running.`,
+        msg`Field ${field.id} is pending in state ${state.name} but records aria-busy as ${attributeAsPrinted(record.ariaBusy)}, so nothing in the markup says a check is still running.`,
         stateWhere,
         { suggestion: 'Set aria-busy="true" on the control, or its wrapper, while the asynchronous check runs.' },
       ))
