@@ -15,6 +15,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { INVALID_TOKENS } from '../src/index.mjs'
 import { checkMutated, fieldIn, findingsFor, ruleIds, runCli, stateNamed, cleanExpectations, cleanSnapshot } from './helpers.mjs'
 
 test('the shipped clean example passes, so the failing cases below are not passing by accident', async () => {
@@ -121,6 +122,46 @@ test('an error linked to the wrong field fails', async (t) => {
   )
 })
 
+test('a field in error that exposes itself as invalid is silent, whichever token says so', async (t) => {
+  // The first verification of a checker is not "does it catch the bad case", it
+  // is "does it stay silent on the good one". `aria-invalid="spelling"` on a
+  // spell-checked field in error is markup ARIA 1.2 describes, and requiring
+  // the literal `true` made this an error-severity finding, exit 1, on a form
+  // that was already right.
+  for (const token of INVALID_TOKENS) {
+    await t.test(token, async () => {
+      const report = await checkMutated((snapshot) => {
+        for (const record of stateNamed(snapshot, '01-submitted-empty').fields) record.ariaInvalid = token
+      })
+      assert.equal(report.status, 'pass')
+      assert.deepEqual(ruleIds(report), [])
+    })
+  }
+
+  await t.test('and the run still fails for a value that exposes nothing', async () => {
+    // The guard for the guard: without it the four silences above would pass
+    // for a predicate that never reports anything.
+    for (const value of ['false', 'tru', null]) {
+      const report = await checkMutated((snapshot) => {
+        for (const record of stateNamed(snapshot, '01-submitted-empty').fields) record.ariaInvalid = value
+      })
+      assert.equal(report.status, 'fail', String(value))
+      assert.deepEqual(ruleIds(report), ['invalid-not-exposed', 'invalid-not-exposed'])
+    }
+  })
+
+  await t.test('a value that renders as nothing is described, not printed as nothing', async () => {
+    // A finding whose own evidence line says nothing cannot be acted on, which
+    // is what "records aria-invalid as ." was.
+    const report = await checkMutated((snapshot) => {
+      fieldIn(stateNamed(snapshot, '01-submitted-empty'), 'email').ariaInvalid = '\u0001\u200e'
+    })
+    assert.equal(report.status, 'fail')
+    const finding = findingsFor(report, 'invalid-not-exposed')[0]
+    assert.match(finding.message, /records aria-invalid as a value that shows nothing\./u)
+  })
+})
+
 test('corrected input clears stale error state', async (t) => {
   await t.test('the clean corrected state, which clears everything, is the passing case', async () => {
     const report = await checkMutated(null)
@@ -136,6 +177,40 @@ test('corrected input clears stale error state', async (t) => {
     })
     assert.equal(report.status, 'fail')
     assert.deepEqual(ruleIds(report), ['stale-error-state'])
+  })
+
+  await t.test('EVERY aria-invalid value that exposes a control as invalid is stale, not just "true"', async (inner) => {
+    // ARIA 1.2 gives the state four tokens, and `grammar` and `spelling` each
+    // say an error was detected -- they are not a milder kind of valid. A
+    // corrected field left carrying one is still a field exposed as invalid,
+    // and asking for the literal `true` let it through.
+    assert.deepEqual([...INVALID_TOKENS], ['grammar', 'spelling', 'true'])
+    for (const token of INVALID_TOKENS) {
+      await inner.test(token, async () => {
+        const report = await checkMutated((snapshot) => {
+          fieldIn(stateNamed(snapshot, '04-both-corrected'), 'email').ariaInvalid = token
+        })
+        assert.equal(report.status, 'fail')
+        assert.deepEqual(ruleIds(report), ['stale-error-state'])
+        assert.match(findingsFor(report, 'stale-error-state')[0].message, new RegExp(`aria-invalid as ${token}`, 'u'))
+      })
+    }
+  })
+
+  await t.test('a value outside the token set is not invalid, because ARIA falls back to the default', async (inner) => {
+    // The other direction, and it is not decoration: `false` and a typo of
+    // `true` both take the attribute's default, which is `false`, so neither
+    // leaves the field marked. Without this the test above would pass for a
+    // predicate that answered "yes" to everything.
+    for (const value of ['false', 'tru', null]) {
+      await inner.test(String(value), async () => {
+        const report = await checkMutated((snapshot) => {
+          fieldIn(stateNamed(snapshot, '04-both-corrected'), 'email').ariaInvalid = value
+        })
+        assert.equal(report.status, 'pass')
+        assert.deepEqual(ruleIds(report), [])
+      })
+    }
   })
 
   await t.test('an error message left on screen after the field is corrected fails', async () => {

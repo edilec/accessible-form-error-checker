@@ -13,7 +13,7 @@ import { readFile, readdir } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import test from 'node:test'
 
-import { CATALOG, TOOL_ID, DEFAULT_LIMITS, FOCUS_TARGETS, REFUSED_POLICY_KEYS } from '../src/index.mjs'
+import { CATALOG, TOOL_ID, DEFAULT_LIMITS, FOCUS_TARGETS, REFUSED_POLICY_KEYS, marksInvalid } from '../src/index.mjs'
 import { ROOT } from './helpers.mjs'
 
 async function readme() {
@@ -57,6 +57,20 @@ test('every documented focus target and node kind exists in the code', async () 
   for (const target of FOCUS_TARGETS) assert.match(text, new RegExp(`\`${target}\``, 'u'), target)
   for (const kind of CATALOG.nodeKinds) assert.match(text, new RegExp(`\`${kind}\``, 'u'), kind)
   for (const state of CATALOG.indexStates) assert.match(text, new RegExp(`"${state}"`, 'u'), state)
+})
+
+test('every aria-invalid token the code treats as invalid is documented, and no other', async () => {
+  const text = await readme()
+  for (const token of CATALOG.invalidTokens) {
+    assert.match(text, new RegExp(`\`${token}\``, 'u'), token)
+    assert.ok(marksInvalid(token), token)
+  }
+  // The other direction: `false` is documented as the default and must not be
+  // in the list, and a value outside the token set takes that default.
+  for (const value of ['false', 'tru', '', null, undefined]) {
+    assert.ok(!marksInvalid(value), String(value))
+  }
+  assert.match(text, /aria-invalid.*four token values/su)
 })
 
 test('every refused policy key is named in the README', async () => {
