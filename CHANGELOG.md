@@ -14,7 +14,11 @@ First working version.
   actually reference it, the message must show some text, and it must be
   recorded as present.
 - Stale-state checks: a field a state declares no error for may not still carry
-  `aria-invalid="true"`, a message written about it, or a summary link.
+  an `aria-invalid` value that exposes it as invalid, a message written about
+  it, or a summary link.
+- One list of the `aria-invalid` token values that expose a control as invalid —
+  `true`, `spelling` and `grammar`, per ARIA 1.2 — used by both the check that a
+  field in error is marked and the check that a corrected field is not.
 - Error summary checks: every field in error linked, nothing else linked, and
   each link pointing at a field rather than at some other element.
 - Focus recovery checks against `focusAfterSubmit`, for a state recorded as

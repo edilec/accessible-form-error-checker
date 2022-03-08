@@ -242,10 +242,29 @@ turns a real failure into a green run.
 checked only for a state recorded as `submitted` that holds at least one field
 in error.
 
-`requireAriaInvalid` governs whether a field **in error** must expose
-`aria-invalid="true"`. It does not govern whether a field that is **not** in
-error may still be marked as one: that is always checked, because it is the
-question "was the stale error state cleared".
+`requireAriaInvalid` governs whether a field **in error** must expose itself as
+invalid. It does not govern whether a field that is **not** in error may still be
+marked as one: that is always checked, because it is the question "was the stale
+error state cleared".
+
+### What counts as exposed invalid
+
+ARIA 1.2 gives `aria-invalid` four token values: `false`, which is the default,
+`true`, `grammar` and `spelling`. `grammar` and `spelling` are not a milder kind
+of valid — each says an error was detected and names what kind — so a control
+carrying one is exposed as invalid exactly as `true` is.
+
+Both sides of that question take the same answer from one list, because asking
+for the literal `true` was wrong in both directions at once: a spell-checked
+field in error carrying `aria-invalid="spelling"` was reported as
+`invalid-not-exposed`, at error severity, exit 1, on markup the specification
+describes; and a corrected field left carrying `aria-invalid="spelling"` was not
+reported as `stale-error-state` at all.
+
+A value outside the token set is deliberately not in the list: ARIA says an
+unrecognised token takes the attribute's default, and the default here is
+`false`, so `aria-invalid="tru"` exposes nothing as invalid — which is why a
+typo there fails a field in error rather than passing it.
 
 ## Rules
 
