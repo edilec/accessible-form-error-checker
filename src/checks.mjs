@@ -440,6 +440,15 @@ function checkSummary({ state, errored, index, policy, file, findings }) {
   // has already said so, and nothing is concluded from a block nobody parsed.
   if (state.summary === undefined) return
 
+  // The summary block's own id is an id the snapshot states, so it goes through
+  // the same gate as every other one. It was the one id that did not: with a
+  // COMPLETE index holding no such element, a state could name a summary the
+  // snapshot never declares, record focus on it, and the run reported `pass` at
+  // exit 0 -- while the identical dangling id in `describedby` was
+  // `reference-broken` at exit 1. It is resolved once per state, here, and
+  // `checkFocus` then looks it up directly rather than reporting it twice.
+  resolveReference(index, state.summary.id, where, findings, `The summary in state ${state.name}`)
+
   const erroredIds = new Set(errored.map((entry) => entry.id))
   const recordedIds = new Set(state.records.keys())
   const targets = [...new Set(state.summary.links.map((link) => link.target))].sort(byCodeUnit)
@@ -476,7 +485,7 @@ function checkSummary({ state, errored, index, policy, file, findings }) {
   }
 }
 
-function checkFocus({ state, errored, policy, file, findings }) {
+function checkFocus({ state, errored, index, policy, file, findings }) {
   if (!state.submitted || errored.length === 0) return
   const where = at(file, pointerFor('states', state.name, 'focus'))
 
@@ -490,14 +499,28 @@ function checkFocus({ state, errored, policy, file, findings }) {
     return
   }
 
+  // A permitted target is an id, and an id the index cannot confirm is not a
+  // place focus can be said to have landed. These are direct lookups rather
+  // than `resolveReference` calls because every one of them was resolved and
+  // reported once already -- the summary block's id in `checkSummary`, the
+  // declared error in `checkStateField` -- and resolving again would report the
+  // same dangling id twice. `first-invalid-field` is a field the index itself
+  // produced, so it is always known.
   const allowed = new Map()
+  let unknown = false
+  const known = (ref) => {
+    if (index.byId.get(ref) !== undefined) return true
+    if (!index.complete) unknown = true
+    return false
+  }
+
   for (const target of policy.focusAfterSubmit) {
     if (target === 'summary' && state.summary !== null && state.summary !== undefined) {
-      allowed.set(state.summary.id, 'summary')
+      if (known(state.summary.id)) allowed.set(state.summary.id, 'summary')
     }
     if (target === 'first-invalid-field') allowed.set(errored[0].id, 'first-invalid-field')
     if (target === 'first-error-message' && errored[0].declaredError !== null) {
-      allowed.set(errored[0].declaredError, 'first-error-message')
+      if (known(errored[0].declaredError)) allowed.set(errored[0].declaredError, 'first-error-message')
     }
   }
 
@@ -515,6 +538,13 @@ function checkFocus({ state, errored, policy, file, findings }) {
   }
 
   if (state.focus !== null && allowed.has(state.focus)) return
+  // A permitted target the index could not look up is not a target focus
+  // missed. `reference-unresolved` has already said the run could not find it,
+  // and saying focus went somewhere else would be a positive conclusion about a
+  // node this run cannot see -- the same suppression `field-not-labelled` and
+  // `error-message-not-visible` make, and the sibling tool's
+  // `expected-update-missing` gate.
+  if (unknown) return
   findings.push(makeFinding(
     'focus-not-recovered',
     msg`State ${state.name} records focus on ${state.focus === null ? 'nothing' : state.focus} after a submission that produced ${num(errored.length)} error(s).`,
@@ -756,7 +786,7 @@ export function checkSnapshot({ snapshot, policy, file, now }) {
       .map((field) => state.records.get(field.id))
       .filter((record) => record !== undefined && record.declaredError !== null)
     checkSummary({ state, errored, index, policy, file, findings })
-    checkFocus({ state, errored, policy, file, findings })
+    checkFocus({ state, errored, index, policy, file, findings })
   }
 
   for (const field of index.fields) checkAsync({ field, states: snapshot.states, file, findings })
