@@ -16,6 +16,8 @@
  */
 
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import test from 'node:test'
 
 import {
@@ -28,7 +30,7 @@ import {
   makeFinding,
   msg,
 } from '../src/index.mjs'
-import { checkMutated, cleanExpectations, cleanSnapshot, findingsFor, ruleIds, runCli, stateNamed, fieldIn } from './helpers.mjs'
+import { checkMutated, cleanExpectations, cleanSnapshot, findingsFor, ruleIds, runCli, stateNamed, fieldIn, ROOT } from './helpers.mjs'
 
 test('the report does not claim to emulate a screen reader', async (t) => {
   await t.test('a finding message that would claim it throws at construction', () => {
@@ -277,5 +279,117 @@ test('results remain DOM-based evidence', async (t) => {
       assert.ok(!finding.location.file.startsWith('/'), 'never an absolute host path')
       assert.match(finding.location.pointer, /^\//u)
     }
+  })
+})
+
+test('every id the README says goes through the resolution gate really does', async (t) => {
+  // The list in the README is a claim about the code, so it is driven through
+  // the code: one dangling id per named field, a COMPLETE index, and the answer
+  // has to be `reference-broken` at exit 1 every time.
+  //
+  // `states[].summary.id` was the entry that was not true. A state could name a
+  // summary block the snapshot never declares, record focus on it, and the run
+  // reported `pass` at exit 0 -- while the identical dangling id in
+  // `describedby` was `reference-broken` at exit 1. That is the contract's
+  // "unknown is never a pass, on both sides of a comparison", failing on the
+  // side nobody looked at.
+  const GATED = {
+    'fields[].labelling.labelFor': (snapshot) => {
+      snapshot.fields[0].labelling.labelFor = 'ghost-node'
+    },
+    'fields[].labelling.ariaLabelledby': (snapshot) => {
+      snapshot.fields[0].labelling.ariaLabelledby = ['ghost-node']
+    },
+    'states[].fields[].declaredError': (snapshot) => {
+      fieldIn(stateNamed(snapshot, '01-submitted-empty'), 'email').declaredError = 'ghost-node'
+    },
+    'states[].fields[].describedby': (snapshot) => {
+      fieldIn(stateNamed(snapshot, '04-both-corrected'), 'email').describedby = ['ghost-node']
+    },
+    'states[].fields[].errormessage': (snapshot) => {
+      fieldIn(stateNamed(snapshot, '04-both-corrected'), 'email').errormessage = 'ghost-node'
+    },
+    'states[].visibleMessages': (snapshot) => {
+      stateNamed(snapshot, '04-both-corrected').visibleMessages = ['ghost-node']
+    },
+    'states[].summary.id': (snapshot) => {
+      stateNamed(snapshot, '01-submitted-empty').summary.id = 'ghost-node'
+    },
+    'states[].summary.links[].target': (snapshot) => {
+      stateNamed(snapshot, '01-submitted-empty').summary.links = [{ target: 'ghost-node' }]
+    },
+  }
+
+  const documented = (await readFile(join(ROOT, 'README.md'), 'utf8'))
+  for (const [field, dangle] of Object.entries(GATED)) {
+    await t.test(field, async () => {
+      assert.ok(
+        documented.includes(`\`${field}\``),
+        'the README has to name this field as one that goes through the gate',
+      )
+
+      const snapshot = await cleanSnapshot()
+      dangle(snapshot)
+      const cli = await runCli(snapshot, await cleanExpectations())
+      assert.equal(cli.code, 1, 'a complete index turns a dangling id into a defect')
+      const complete = JSON.parse(cli.stdout)
+      assert.equal(complete.status, 'fail')
+      assert.ok(findingsFor(complete, 'reference-broken').length > 0, ruleIds(complete).join(', '))
+
+      // And the honest other half: with an index that cannot answer, the same
+      // dangling id is a gap rather than a defect.
+      const partial = await checkMutated((document) => {
+        dangle(document)
+        document.capture.idIndex = 'partial'
+      })
+      assert.equal(partial.status, 'incomplete')
+      assert.ok(findingsFor(partial, 'reference-unresolved').length > 0)
+      assert.equal(findingsFor(partial, 'reference-broken').length, 0)
+    })
+  }
+})
+
+test('a focus target the index could not look up is not a target focus missed', async (t) => {
+  // `focusAfterSubmit` permits ids, and an id the index cannot confirm is not a
+  // place focus can be said to have landed. The two halves are the same gate
+  // `field-not-labelled` and `error-message-not-visible` apply, and the sibling
+  // tool's `expected-update-missing`.
+  const withoutTheSummaryElement = (snapshot) => {
+    snapshot.nodes = snapshot.nodes.filter((node) => node.id !== 'error-summary')
+  }
+
+  await t.test('a complete index that does not hold it: the reference is broken and focus is not recovered', async () => {
+    const report = await checkMutated(withoutTheSummaryElement)
+    assert.equal(report.status, 'fail')
+    assert.ok(ruleIds(report).includes('reference-broken'))
+    assert.ok(
+      ruleIds(report).includes('focus-not-recovered'),
+      'the summary is not a permitted target when the snapshot declares no such element',
+    )
+  })
+
+  await t.test('an index that cannot say: incomplete, and no accusation about where focus went', async () => {
+    const report = await checkMutated((snapshot) => {
+      withoutTheSummaryElement(snapshot)
+      snapshot.capture.idIndex = 'partial'
+    })
+    assert.equal(report.status, 'incomplete')
+    assert.ok(ruleIds(report).includes('reference-unresolved'))
+    assert.ok(
+      !ruleIds(report).includes('focus-not-recovered'),
+      'saying focus went elsewhere would be a positive claim about a node this run cannot see',
+    )
+  })
+
+  await t.test('and the suppression is not a blanket one: a real miss still fails', async () => {
+    // The guard for the guard. With the same partial index, focus on a node
+    // that IS in the snapshot and is not a permitted target is still exit 1.
+    const report = await checkMutated((snapshot) => {
+      withoutTheSummaryElement(snapshot)
+      snapshot.capture.idIndex = 'partial'
+      stateNamed(snapshot, '01-submitted-empty').summary = null
+      stateNamed(snapshot, '01-submitted-empty').focus = 'email-hint'
+    })
+    assert.ok(ruleIds(report).includes('focus-not-recovered'))
   })
 })
