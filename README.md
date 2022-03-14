@@ -195,11 +195,25 @@ does not claim the association is right, and marks the run incomplete. A field
 whose only labelling reference cannot be resolved is likewise not called
 unlabelled.
 
-Every id the snapshot states goes through that one gate, and this list is the
-whole of them: `fields[].labelling.labelFor`,
+Every id the snapshot states is resolved through that one gate, and this list is
+the whole of them: `fields[].labelling.labelFor`,
 `fields[].labelling.ariaLabelledby`, `states[].fields[].declaredError`,
 `states[].fields[].describedby`, `states[].fields[].errormessage`,
-`states[].visibleMessages` and `states[].summary.links[].target`.
+`states[].visibleMessages`, `states[].summary.id` and
+`states[].summary.links[].target`.
+
+`states[].summary.id` was the one that was not, and the hole it left is the
+reason this list is written down. With a **complete** index holding no such
+element, a state could name a summary block the snapshot never declares, record
+focus on it, and the run reported `pass` at exit 0 — while the identical
+dangling id in `describedby` was `reference-broken` at exit 1.
+
+`states[].focus` is the one id that is compared rather than resolved: it is
+matched against the targets `focusAfterSubmit` permits, and every one of those
+is itself an id the index confirmed. A permitted target the index could not look
+up is not offered as a place focus could have landed, and when the index cannot
+say, `focus-not-recovered` is suppressed rather than asserted — the same gate
+`field-not-labelled` and `error-message-not-visible` apply.
 
 The gate works in the other direction as well. `error-message-not-visible` says
 a state does not record the declared error as present, and it is asserted only
