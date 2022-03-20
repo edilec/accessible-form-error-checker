@@ -28,6 +28,11 @@ First working version.
   pending record must expose `aria-busy="true"`.
 - Label evidence checks, with `aria-label` judged by what it would show rather
   than by `trim()`.
+- One resolution gate for every id the snapshot states, including the summary
+  block's own id: with a complete index an id that is not in the snapshot is a
+  broken reference and the run fails, and with an index that cannot answer it is
+  an unresolved reference and the run is incomplete. A permitted focus target is
+  only offered when the index confirms it.
 - A 44-rule catalog with one frozen severity table, and an evidence-missing list
   that makes any gap in the evidence an `incomplete` report and exit 2.
 - Expectations document with `requireErrorSummary`, `requireAriaInvalid`,
