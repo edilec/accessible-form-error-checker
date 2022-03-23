@@ -202,12 +202,6 @@ the whole of them: `fields[].labelling.labelFor`,
 `states[].visibleMessages`, `states[].summary.id` and
 `states[].summary.links[].target`.
 
-`states[].summary.id` was the one that was not, and the hole it left is the
-reason this list is written down. With a **complete** index holding no such
-element, a state could name a summary block the snapshot never declares, record
-focus on it, and the run reported `pass` at exit 0 — while the identical
-dangling id in `describedby` was `reference-broken` at exit 1.
-
 `states[].focus` is the one id that is compared rather than resolved: it is
 matched against the targets `focusAfterSubmit` permits, and every one of those
 is itself an id the index confirmed. A permitted target the index could not look
