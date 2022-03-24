@@ -117,17 +117,44 @@ fails when it is made:
 
 ## What the sweep is, and what it found
 
-The sweep is mechanical, and the enumeration rather than the adjective is what
-is worth reporting. Four categories, derived from the source text rather than
-from a list somebody thought of:
+The sweep is mechanical, and the **enumeration** rather than the adjective is
+what is worth reporting: a reader can re-derive a list, and cannot re-derive
+"every". An earlier note here said the guard category was "every named guard,
+refusal or validation in `src/`, neutered (56)". That sentence is accurate about
+its category and narrow about its enumeration, which is the failure mode that
+makes a sweep unreproducible: an independent line-indexed enumeration of the
+same four categories found 212 guard mutations, not 56, and the whole of
+`readField`, `readNode`, `readStateField`, `readSummary` and `readSnapshot` was
+undefended.
 
-- every entry in `EVIDENCE_MISSING_RULES`, deleted (29)
-- every severity in `RULE_SEVERITY`, flipped one step (44)
-- every named guard, refusal or validation in `src/`, neutered (56)
-- the ordering primitive given a collator, and each sort key dropped (6)
+So the enumeration is written down as a rule, not a count. Files: every `.mjs`
+under `src/` and `bin/`. Categories:
 
-The first run over this tree was 124 mutations with 117 caught. All seven
-survivors were missing tests rather than equivalent mutants, and each now has
-one. A second run over the final tree, widened to 135 mutations, left four
-survivors -- the four sort keys and the unreadable-reason guard -- which are also
-now pinned.
+| Category | Rule | Count |
+| --- | --- | ---: |
+| severity | every `'<rule>': '<severity>',` line inside `RULE_SEVERITY`, flipped one step | 44 |
+| evidence-missing | every entry line of `EVIDENCE_MISSING_RULES`, deleted | 29 |
+| guard | every `if (…) {` and `} else if (…) {` opener and every single-line `if (…) return/throw/continue/break`, condition replaced with `false`; plus every `findings.push(makeFinding(…))` statement, deleted | 212 |
+| ordering | `byCodeUnit` given `localeCompare` and `Intl.Collator`; each `compareFindings` key replaced with `0`; every `.sort(…)` call site other than `sortFindings` given `() => 0` | 22 |
+
+307 mutations, 307 applied, 293 caught, 14 survived.
+
+A survivor is one of two things and the report has to say which. Each was
+re-applied and run over a differential corpus of 5824 documents -- every position
+of both shipped example pairs retyped to sixteen values and deleted, over the
+snapshot and the expectations, plus 66 hand-built pairs reaching code the
+examples never do, plus the file-level cases a document cannot express. A
+survivor that changes any exit code or any report byte is a missing test.
+
+That found 58, now covered, plus `num`'s non-finite branch, which no document
+tells apart but which decides what the exported function answers for a value
+that is not a number at all.
+
+The 14 that remain are equivalent mutants, each proved rather than assumed:
+
+| Survivor | Why nothing can tell it apart |
+| --- | --- |
+| the eight per-loop `.sort(byCodeUnit)` calls in `checks.mjs` | they decide push order only; across 5588 reports and 28110 findings no two findings in one report compare equal under `compareFindings` while differing in any field, so the final sort fully determines the order. The two sorts that build an evidence STRING -- the index-incomplete reasons and the permitted focus ids -- are not in this list, and each has a test |
+| `rules.mjs` `RULE_SEVERITY` keys and the `EVIDENCE_MISSING_RULES` literal | both are already written in code-unit order, so the sort is the identity. `DEFAULT_LIMITS` is **not**, which is why dropping that sort is caught |
+| `policy.mjs` the month/day range check in `parseInstant` | identical output over all 560,000 strings the grammar accepts for 14 years x month 00-99 x day 00-99 x 4 times of day: every out-of-range value shifts the year, month or date, and the `Date` round-trip below rejects exactly those. The hour/minute/second check beside it is NOT equivalent -- a minute of 60 round-trips clean -- and has its own test |
+| `rules.mjs` the string, `null` and `undefined` fast paths of `describeValue` | `String(s)` is `s`, `String(null)` is `"null"`, `String(undefined)` is `"undefined"`, checked over 40 values covering every type a JSON document can hold and several it cannot. The array branch is **not** equivalent -- `String([])` is the empty string -- and has its own test |
