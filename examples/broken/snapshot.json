@@ -1,0 +1,223 @@
+{
+  "schemaVersion": "1",
+  "capture": {
+    "id": "checkout-details-regression",
+    "source": "dom-snapshot",
+    "capturedAt": "2026-09-10",
+    "idIndex": "complete"
+  },
+  "fields": [
+    {
+      "id": "email",
+      "asyncValidated": true,
+      "labelling": {
+        "labelFor": "email-label",
+        "ariaLabelledby": null,
+        "ariaLabel": null,
+        "wrappingLabel": false
+      }
+    },
+    {
+      "id": "postcode",
+      "labelling": {
+        "labelFor": "postcode-label",
+        "ariaLabelledby": null,
+        "ariaLabel": null,
+        "wrappingLabel": false
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "email-label",
+      "kind": "label",
+      "text": "Email address"
+    },
+    {
+      "id": "postcode-label",
+      "kind": "label",
+      "text": "Postcode"
+    },
+    {
+      "id": "email-hint",
+      "kind": "other",
+      "text": "We use this for your receipt only."
+    },
+    {
+      "id": "error-summary",
+      "kind": "summary",
+      "text": "There is a problem"
+    },
+    {
+      "id": "email-error-required",
+      "kind": "message",
+      "belongsTo": "email",
+      "text": "Enter your email address"
+    },
+    {
+      "id": "email-error-taken",
+      "kind": "message",
+      "belongsTo": "email",
+      "text": "That address is already registered"
+    },
+    {
+      "id": "postcode-error-required",
+      "kind": "message",
+      "belongsTo": "postcode",
+      "text": "Enter your postcode"
+    }
+  ],
+  "states": [
+    {
+      "name": "01-submitted-empty",
+      "submitted": true,
+      "focus": "email-hint",
+      "visibleMessages": [
+        "email-error-required",
+        "postcode-error-required"
+      ],
+      "summary": {
+        "id": "error-summary",
+        "links": [
+          {
+            "target": "email"
+          },
+          {
+            "target": "postcode"
+          }
+        ]
+      },
+      "fields": [
+        {
+          "id": "email",
+          "declaredError": "postcode-error-required",
+          "describedby": [
+            "email-hint",
+            "postcode-error-required"
+          ],
+          "errormessage": null,
+          "ariaInvalid": "true"
+        },
+        {
+          "id": "postcode",
+          "declaredError": "postcode-error-required",
+          "describedby": [
+            "postcode-error-required"
+          ],
+          "errormessage": null,
+          "ariaInvalid": "true"
+        }
+      ]
+    },
+    {
+      "name": "02-email-checking",
+      "visibleMessages": [
+        "postcode-error-required"
+      ],
+      "summary": {
+        "id": "error-summary",
+        "links": [
+          {
+            "target": "postcode"
+          }
+        ]
+      },
+      "fields": [
+        {
+          "id": "email",
+          "pending": true,
+          "declaredError": null,
+          "describedby": [
+            "email-hint"
+          ],
+          "errormessage": null,
+          "ariaInvalid": null,
+          "ariaBusy": null
+        },
+        {
+          "id": "postcode",
+          "declaredError": "postcode-error-required",
+          "describedby": [
+            "postcode-error-required"
+          ],
+          "errormessage": null,
+          "ariaInvalid": "true"
+        }
+      ]
+    },
+    {
+      "name": "03-email-taken",
+      "visibleMessages": [
+        "email-error-taken",
+        "postcode-error-required"
+      ],
+      "summary": {
+        "id": "error-summary",
+        "links": [
+          {
+            "target": "email"
+          },
+          {
+            "target": "postcode"
+          }
+        ]
+      },
+      "fields": [
+        {
+          "id": "email",
+          "pending": false,
+          "declaredError": "email-error-taken",
+          "describedby": [
+            "email-hint"
+          ],
+          "errormessage": "email-error-taken",
+          "ariaInvalid": "true",
+          "ariaBusy": null
+        },
+        {
+          "id": "postcode",
+          "declaredError": "postcode-error-required",
+          "describedby": [
+            "postcode-error-required"
+          ],
+          "errormessage": null,
+          "ariaInvalid": "true"
+        }
+      ]
+    },
+    {
+      "name": "04-both-corrected",
+      "visibleMessages": [
+        "email-error-required"
+      ],
+      "summary": {
+        "id": "error-summary",
+        "links": [
+          {
+            "target": "email"
+          }
+        ]
+      },
+      "fields": [
+        {
+          "id": "email",
+          "pending": false,
+          "declaredError": null,
+          "describedby": [
+            "email-hint"
+          ],
+          "errormessage": null,
+          "ariaInvalid": "true",
+          "ariaBusy": null
+        },
+        {
+          "id": "postcode",
+          "declaredError": null,
+          "describedby": null,
+          "errormessage": null,
+          "ariaInvalid": null
+        }
+      ]
+    }
+  ]
+}
